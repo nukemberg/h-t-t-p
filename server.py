@@ -1,9 +1,10 @@
 import socket
-from infra import parse_request, method_has_body, find_header
+from infra import parse_request, method_has_body, find_header, MalformedRequestError, UnsupportedMethodError
 import json
 from io import BytesIO
 import logging
 import sys
+from http import HTTPStatus
 
 DEFAULT_RESPONSE_HEADERS = (
     ('Content-Type', 'text/html; charset=utf-8'),
@@ -20,11 +21,13 @@ def _to_bytes(x):
         return str(x).encode()
 
 
-def respond(conn, protocol, status_code, status_text, headers, body):        
+def respond(conn, protocol, status_code, status_text, headers, body=None):
     conn.sendall(b' '.join(_to_bytes(x) for x in (protocol, status_code, status_text)) + b'\r\n')
     for header in headers:
         conn.sendall((_to_bytes(header[0]) + b': ' + _to_bytes(header[1]) + b'\r\n'))
     conn.sendall(b'\r\n')
+    if body:
+        conn.sendall(body)
 
 
 def handle_request(conn):
@@ -39,6 +42,10 @@ def handle_connection(conn):
         while not req['close']:
             logging.info('Reusing connection')
             req = handle_request(conn)
+    except MalformedRequestError:
+        respond(conn, 'HTTP/1.1', HTTPStatus.BAD_REQUEST.value, 'Bad request', DEFAULT_RESPONSE_HEADERS)
+    except UnsupportedMethodError:
+        respond(conn, 'HTTP/1.1', HTTPStatus.METHOD_NOT_ALLOWED.value, 'Method not allowed', DEFAULT_RESPONSE_HEADERS)
     except ConnectionAbortedError:
         logging.info('Connection aborted')
     except Exception as e:

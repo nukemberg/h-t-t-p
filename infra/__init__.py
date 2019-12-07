@@ -19,6 +19,9 @@ logger = Logger('infra')
 class MalformedRequestError(Exception):
     pass
 
+class UnsupportedMethodError(Exception):
+    pass
+
 def find_header(headers, name):
     try:
         return tuple(s.lower() for s in next(filter(lambda header: header[0].lower() == name.lower(), headers)))
@@ -48,7 +51,7 @@ def parse_headers(_reader):
     while True:
         line = _reader.readline()
         if len(line) > _MAXLINE:
-            raise Exception('Header line too long')
+            raise MalformedRequestError('Header line too long')
 
         if line in (b'\r\n', b'\n', b''):
             break
@@ -68,13 +71,15 @@ def parse_request_line(_reader):
     parts = line.split()
     if len(parts) != 3:
         logger.debug('request: {}'.format(line))
-        raise Exception('Request line malformed')
+        raise MalformedRequestError('Request line malformed')
     return parts
 
 
 def parse_request(_socket):
     buff = BytesIO(_socket.recv(HEADERS_BUFFER_SIZE))
     (method, path, protocol) = parse_request_line(buff)
+    if method not in HTTP_METHODS:
+        raise UnsupportedMethodError('Method not supported')
     headers = parse_headers(buff)
     connection_header = find_header(headers, 'connection')
     if connection_header and connection_header[1] == 'keep-alive' and protocol == 'HTTP/1.1':
