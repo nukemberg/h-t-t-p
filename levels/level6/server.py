@@ -1,8 +1,6 @@
 import socket
-import json
 from io import BytesIO
 import logging
-import sys
 from http import HTTPStatus
 
 DEFAULT_RESPONSE_HEADERS = (
@@ -86,26 +84,17 @@ def parse_request(_socket):
     # What is the size of HEADERS_BUFFER_SIZE? how big should it be? why don't we just read line by line?
     buff = BytesIO(_socket.recv(HEADERS_BUFFER_SIZE))
     (method, path, protocol) = parse_request_line(buff)
-    
+
     headers = parse_headers(buff)
-        
+
     return {
         'headers': headers,
         'method': method,
         'path': path,
         'protocol': protocol,
         'body': b'',
-        'close': close
+        'close': True
     }
-
-
-def _to_bytes(x):
-    if type(x) == bytes:
-        return x
-    elif type(x) == str:
-        return x.encode()
-    else:
-        return str(x).encode()
 
 
 def respond(conn, protocol, status_code, status_text, headers, body=None):
@@ -125,7 +114,7 @@ def handle_request(conn):
 
 def handle_connection(conn):
     try:
-        req = handle_request(conn)
+        handle_request(conn)
     except MalformedRequestError:
         respond(conn, 'HTTP/1.1', HTTPStatus.BAD_REQUEST.value, 'Bad request', DEFAULT_RESPONSE_HEADERS)
     except UnsupportedMethodError:
@@ -147,7 +136,7 @@ def init(port):
 
     while True:
         conn, addr = _socket.accept()
-        logging.info('New connection from {}'.format(addr)) 
+        logging.info('New connection from {}'.format(addr))
         handle_connection(conn)
 
 
