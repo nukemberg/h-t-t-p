@@ -1,9 +1,8 @@
-import socket
-import json
-from io import BytesIO
 import logging
-import sys
+import socket
 from http import HTTPStatus
+from io import BytesIO
+import time
 
 DEFAULT_RESPONSE_HEADERS = (
     ('Content-Type', 'text/html; charset=utf-8'),
@@ -12,8 +11,9 @@ DEFAULT_RESPONSE_HEADERS = (
 
 _MAXLINE = 65536
 _MAXHEADERS = 100
+READ_TIMEOUT = 5  # 5s
 HEADERS_BUFFER_SIZE = 64*1024  # 64kb
-BODY_BUFFER_SIZE = 8*2**20 # 8MB
+BODY_BUFFER_SIZE = 8*2**20  # 8MB
 HTTP_METHODS = (
     b'OPTIONS',
     b'GET',
@@ -91,8 +91,22 @@ def parse_request_line(_reader):
     return parts
 
 
-def parse_request(_socket):
-    buff = BytesIO(_socket.recv(HEADERS_BUFFER_SIZE))
+def parse_request(conn, keep_alive=False):
+    process_start_time = int(time.time())
+    while True:
+        try:
+            buff = BytesIO(conn.recv(HEADERS_BUFFER_SIZE))
+            break
+        except:
+            if keep_alive:
+                continue
+
+            if int(time.time()) - process_start_time >= READ_TIMEOUT:
+                conn.close()
+                raise TimeoutError
+
+            continue
+
     (method, path, protocol) = parse_request_line(buff)
     if method not in HTTP_METHODS:
         raise UnsupportedMethodError('Method not supported')
@@ -108,7 +122,7 @@ def parse_request(_socket):
     # if we just recv() more from the socket we might block, perhaps there isn't more to read?
     content_length = parse_content_length(headers)
     if method_has_body(method) and content_length > 0:
-        body_rest = _socket.recv(content_length)
+        body_rest = conn.recv(content_length)
         body = BytesIO(body_start + body_rest)
     else:
         body = BytesIO(body_start)
@@ -141,8 +155,8 @@ def respond(conn, protocol, status_code, status_text, headers, body=None):
         conn.sendall(body)
 
 
-def handle_request(conn):
-    req = parse_request(conn)
+def handle_request(conn, keep_alive=False):
+    req = parse_request(conn, keep_alive)
     respond(conn, req['protocol'], 200, 'OK', DEFAULT_RESPONSE_HEADERS + (('Content-Length', '0'),), '')
     return req
 
@@ -152,13 +166,15 @@ def handle_connection(conn):
         req = handle_request(conn)
         while not req['close']:
             logging.info('Reusing connection')
-            req = handle_request(conn)
+            req = handle_request(conn, True)
     except MalformedRequestError:
         respond(conn, 'HTTP/1.1', HTTPStatus.BAD_REQUEST.value, 'Bad request', DEFAULT_RESPONSE_HEADERS)
     except UnsupportedMethodError:
         respond(conn, 'HTTP/1.1', HTTPStatus.METHOD_NOT_ALLOWED.value, 'Method not allowed', DEFAULT_RESPONSE_HEADERS)
     except ConnectionAbortedError:
         logging.info('Connection aborted')
+    except TimeoutError:
+        logging.error('Connection timeout')
     except Exception as e:
         logging.warn('Exception while handling request', exc_info=e)
     conn.close()
@@ -169,13 +185,18 @@ def init(port):
 
     _socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     _socket.bind(('', port))
+    _socket.setblocking(False)
     _socket.listen()
+
     logging.info('listening on port {}'.format(port))
 
     while True:
-        conn, addr = _socket.accept()
-        logging.info('New connection from {}'.format(addr)) 
-        handle_connection(conn)
+        try:
+            conn, addr = _socket.accept()
+            logging.info('New connection from {}'.format(addr))
+            handle_connection(conn)
+        except:
+            continue
 
 
 if __name__ == "__main__":
