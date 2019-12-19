@@ -92,8 +92,7 @@ def parse_request(conn):
         'method': method,
         'path': path,
         'protocol': protocol,
-        'body': b'',
-        'close': True
+        'body': b''
     }
 
 
