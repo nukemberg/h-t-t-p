@@ -1,22 +1,22 @@
-# Level 8: Timeout
-Until now, we implemented mostly naive HTTP server that handles simple request-response flows.
-In the real life, we have dozes of clients behaving completely differently and since we're trying to write
-serious server we need to protect ourselves. One of the most important concepts we have in web server are timeouts.
+# Level 8: Keep-Alive (i.e. Connection Reuse)
+HTTP/1.1 allows us to keep a connection (socket) open for more incoming requests to be served re-using the original TCP socket.
+In this exercise, we going to implement connection re-use in our low-level code.  
 
-There's a few different types of timeouts, such as the following:
-- Connection timeout (how long it takes to connect to server by a client)
-- Read timeout (how long it takes to read bytes from socket, both for client and server)
-- Idle timeout (how long we allow a connection to stay open without activity, for example in keep-alive case)
-- Processing timeout (how long we allow the *server* to work on specific request)
+Connection re-using is based on two headers:
+- `Connection` header which allow us to control whether the connection should be open after the transcation or not.
+- `Keep-Alive` header which specifies how the keep-alive should behave
 
-In this exercise, we'll implement request (read) timeout.  
-If it takes more than `5s` to read the request payload (headers, body), drop the connection.  
-The implementation part should be filled in the `TODO` blocks.
+We'll need to read the `Connection` header, and behave according to the request value:
+- If request is sent with `Connection` header and the value is 'keep-alive', then preserve the connection open for next incoming requests.
+- If another request is sent with `Connection` header and the value is 'close', close the kept connection.
+
+Note that since we implement a single threaded web server, new connections won't be able to process until the original connection is closed.
+
+## Exercise
+- Implement the keep-alive behavior in the low-level server.py (search for TODO)
 
 ## Questions
-- Can we read from the socket in non blocking way? does it helps us to implement the timeout?
-- What happens if the client sends byte by byte in slow periods? can we protect ourselves? (i.e. [Slowloris](https://en.wikipedia.org/wiki/Slowloris_(computer_security)))
-- Bonus: How could we also limit server-side processing time (internal timeout)?
+- Does the browser sends `Connection` close header? How can we close the connection?
 
 ## Documentation
 - [Python socket module](https://docs.python.org/3.7/library/socket.html)
