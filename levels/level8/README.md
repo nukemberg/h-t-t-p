@@ -3,7 +3,13 @@ Until now, we implemented mostly naive HTTP server that handles simple request-r
 In the real life, we have dozes of clients behaving completely differently and since we're trying to write
 serious server we need to protect ourselves. One of the most important concepts we have in web server are timeouts.
 
-In this exercise, we'll add request (read) timeout.  
+There's a few different types of timeouts, such as the following:
+- Connection timeout (how long it takes to connect to server by a client)
+- Read timeout (how long it takes to read bytes from socket, both for client and server)
+- Idle timeout (how long we allow a connection to stay open without activity, for example in keep-alive case)
+- Processing timeout (how long we allow the *server* to work on specific request)
+
+In this exercise, we'll implement request (read) timeout.  
 If it takes more than `5s` to read the request payload (headers, body), drop the connection.  
 The implementation part should be filled in the `TODO` blocks.
 
