@@ -91,8 +91,8 @@ def parse_request_line(_reader):
     return parts
 
 
-def parse_request(_socket):
-    buff = BytesIO(_socket.recv(HEADERS_BUFFER_SIZE))
+def parse_request(conn):
+    buff = BytesIO(conn.recv(HEADERS_BUFFER_SIZE))
     (method, path, protocol) = parse_request_line(buff)
     if method not in HTTP_METHODS:
         raise UnsupportedMethodError('Method not supported')
@@ -142,7 +142,7 @@ def handle_request(conn):
 
 def handle_connection(conn):
     try:
-        req = handle_request(conn)
+        handle_request(conn)
     except MalformedRequestError:
         respond(conn, 'HTTP/1.1', HTTPStatus.BAD_REQUEST.value, 'Bad request', DEFAULT_RESPONSE_HEADERS)
     except UnsupportedMethodError:

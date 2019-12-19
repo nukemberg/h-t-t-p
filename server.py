@@ -92,20 +92,7 @@ def parse_request_line(_reader):
 
 
 def parse_request(conn, keep_alive=False):
-    process_start_time = int(time.time())
-    while True:
-        try:
-            buff = BytesIO(conn.recv(HEADERS_BUFFER_SIZE))
-            break
-        except:
-            if keep_alive:
-                continue
-
-            if int(time.time()) - process_start_time >= READ_TIMEOUT:
-                conn.close()
-                raise TimeoutError
-
-            continue
+    buff = measured_read(conn, HEADERS_BUFFER_SIZE, keep_alive)
 
     (method, path, protocol) = parse_request_line(buff)
     if method not in HTTP_METHODS:
@@ -122,7 +109,7 @@ def parse_request(conn, keep_alive=False):
     # if we just recv() more from the socket we might block, perhaps there isn't more to read?
     content_length = parse_content_length(headers)
     if method_has_body(method) and content_length > 0:
-        body_rest = conn.recv(content_length)
+        body_rest = measured_read(conn, content_length, keep_alive)
         body = BytesIO(body_start + body_rest)
     else:
         body = BytesIO(body_start)
@@ -135,6 +122,26 @@ def parse_request(conn, keep_alive=False):
         'body': body,
         'close': close
     }
+
+
+def measured_read(conn, size, keep_alive):
+    process_start_time = int(time.time())
+
+    while True:
+        try:
+            buff = BytesIO(conn.recv(size))
+            break
+        except:
+            if keep_alive:
+                continue
+
+            if int(time.time()) - process_start_time >= READ_TIMEOUT:
+                conn.close()
+                raise TimeoutError
+
+            continue
+
+    return buff
 
 
 def _to_bytes(x):

@@ -79,10 +79,10 @@ def parse_request_line(_reader):
     # return (method, path, protocol)
 
 
-def parse_request(_socket):
+def parse_request(conn):
     # Read some data from the socket into a buffer so we can break it into lines
     # What is the size of HEADERS_BUFFER_SIZE? how big should it be? why don't we just read line by line?
-    buff = BytesIO(_socket.recv(HEADERS_BUFFER_SIZE))
+    buff = BytesIO(conn.recv(HEADERS_BUFFER_SIZE))
     (method, path, protocol) = parse_request_line(buff)
 
     headers = parse_headers(buff)
