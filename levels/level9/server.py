@@ -10,7 +10,8 @@ DEFAULT_RESPONSE_HEADERS = (
 
 _MAXLINE = 65536
 _MAXHEADERS = 100
-READ_TIMEOUT = 5  # 5s
+# TODO: change the READ_TIMEOUT to be 5s, and use it later in the code
+READ_TIMEOUT = 1  # 1s
 HEADERS_BUFFER_SIZE = 64*1024  # 64kb
 BODY_BUFFER_SIZE = 8*2**20  # 8MB
 HTTP_METHODS = (
@@ -100,9 +101,13 @@ def parse_request(conn):
     if method not in HTTP_METHODS:
         raise UnsupportedMethodError('Method not supported')
     headers = parse_headers(buff)
+    connection_header = find_header(headers, 'connection')
+    if connection_header and connection_header[1] == 'keep-alive' and protocol == 'HTTP/1.1':
+        close = True
+    else:
+        close = False
 
     # presumably anything left in the headers buffer reader is part of the body so we concatenate
-    # TODO: does read() is blocking?
     body_start = buff.read()
     # if we just recv() more from the socket we might block, perhaps there isn't more to read?
     content_length = parse_content_length(headers)
@@ -119,6 +124,7 @@ def parse_request(conn):
         'path': path,
         'protocol': protocol,
         'body': body,
+        'close': close
     }
 
 
@@ -148,7 +154,10 @@ def handle_request(conn):
 
 def handle_connection(conn):
     try:
-        handle_request(conn)
+        req = handle_request(conn)
+        while not req['close']:
+            logging.info('Reusing connection')
+            req = handle_request(conn, True)
     except MalformedRequestError:
         respond(conn, 'HTTP/1.1', HTTPStatus.BAD_REQUEST.value, 'Bad request', DEFAULT_RESPONSE_HEADERS)
     except UnsupportedMethodError:
@@ -174,9 +183,9 @@ def init(port):
 
     while True:
         # TODO: after changing the socket reading behaviour, accept might raise error. how to deal with that correctly?
-        conn, addr = _socket.accept()
-        logging.info('New connection from {}'.format(addr))
-        handle_connection(conn)
+            conn, addr = _socket.accept()
+            logging.info('New connection from {}'.format(addr))
+            handle_connection(conn)
 
 
 if __name__ == "__main__":
