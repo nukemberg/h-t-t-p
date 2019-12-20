@@ -2,6 +2,7 @@
 
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime
+from email.utils import format_datetime
 
 class RequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -12,7 +13,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.send_header('Content-Type', 'text/html; charset=utf-8')
             self.send_header('Content-Length', len(body))
             self.send_header('Server', 'demo')
-            # TODO: caching headers
+            # TODO: caching headers. Use the format_date function to easily write header dates
             self.end_headers()
             self.wfile.write(body)
         else:
